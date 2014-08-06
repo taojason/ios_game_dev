@@ -15,6 +15,7 @@
 @implementation Gameplay {
     UIAccelerationValue _accelerometerX;
     UIAccelerationValue _accelerometerY;
+    UIAccelerationValue _accelerometerZ;
     
     
     float BorderCollisionDamping;
@@ -26,10 +27,12 @@
     float _defenderSpeedY;
     float _defenderAccelX;
     float _defenderAccelY;
+    float _defenderAccelZ;
     float _defenderAngle;
     float _defenderLastAngle;
     
     float _attacker1LastAngle;
+    int _timer;
     
     Attacker *_attacker1;
     Attacker *_attacker2;
@@ -57,7 +60,7 @@ const float BorderCollisionDamping = 1.2f;
 
 - (void)didLoadFromCCB {
     // visualize physics bodies & joints
-    _physicsNode.debugDraw = TRUE;
+//    _physicsNode.debugDraw = TRUE;
     
     
     _physicsNode.collisionDelegate = self;
@@ -123,9 +126,10 @@ const float BorderCollisionDamping = 1.2f;
 - (void) startSet {
     CCLOG(@"touch received");
     _gameStart = YES;
+    _timer = 0;
     [_motionManager startAccelerometerUpdates];
     for (int i = 0; i<_attackers.count; ++i) {
-        CGPoint force = ccpMult(ccp(arc4random()%5+1, arc4random()%5+1), 1000);
+        CGPoint force = ccpMult(ccp(arc4random()%5+1, arc4random()%5+1), 10000);
         [[[_attackers objectAtIndex:i] physicsBody] applyForce:force];
     }
 }
@@ -139,20 +143,34 @@ const float BorderCollisionDamping = 1.2f;
 {
     [self tick:delta];
     [self updateDefender:delta];
+    if (_timer % 5 == 3) {
+        [self traceDefender];
+    }
 //    [self updateAttacker:delta];
+}
+
+- (void) traceDefender {
+    int i = arc4random() % 4;
+    CGFloat target_x = _defender.position.x;
+    CGFloat target_y = _defender.position.y;
+    CGPoint direction = ccp(target_x / sqrt(target_x * target_x + target_y * target_y), target_y / sqrt(target_x * target_x + target_y * target_y));
+    CGPoint force = ccpMult(direction, 5000);
+    [[[_attackers objectAtIndex:i] physicsBody] applyForce:force];
 }
 
 // a low pass filter
 - (void)filterAcceleration:(CMAcceleration)acceleration
 {
-    const double FilteringFactor = 0.75;
+    const double FilteringFactor = 0.1;
 
     _accelerometerX = acceleration.x * FilteringFactor + _accelerometerX * (1.0 - FilteringFactor);
     _accelerometerY = acceleration.y * FilteringFactor + _accelerometerY * (1.0 - FilteringFactor);
+    _accelerometerZ = acceleration.z * FilteringFactor + _accelerometerZ * (1.0 - FilteringFactor);
 
     
     _defenderAccelX = _accelerometerX;
     _defenderAccelY = _accelerometerY;
+    _defenderAccelZ = _accelerometerZ;
     
     if (_accelerometerX > 0.05)
     {
@@ -169,6 +187,14 @@ const float BorderCollisionDamping = 1.2f;
     else if (_accelerometerY > 0.05)
     {
         _defenderAccelY = MaxPlayerAccel;
+    }
+    if (_accelerometerZ < -0.05)
+    {
+        _defenderAccelZ = -MaxPlayerAccel;
+    }
+    else if (_accelerometerZ > 0.05)
+    {
+        _defenderAccelZ = MaxPlayerAccel;
     }
     
 }
@@ -336,7 +362,7 @@ const float BorderCollisionDamping = 1.2f;
 }
 
 -(void)ccPhysicsCollisionPostSolve:(CCPhysicsCollisionPair *)pair border:(CCNode *)nodeA attacker:(CCNode *)nodeB {
-    CGPoint force = ccpMult(ccp(nodeB.physicsBody.velocity.x, nodeB.physicsBody.velocity.y), 20);
+    CGPoint force = ccpMult(ccp(nodeB.physicsBody.velocity.x, nodeB.physicsBody.velocity.y), 40);
     [[nodeB physicsBody] applyForce:force];
 }
 
@@ -357,7 +383,7 @@ const float BorderCollisionDamping = 1.2f;
     
     int min = (int)digit_min;
     int sec = (int)digit_sec;
-    
+    _timer ++;
 //    CCLOG(@"mTimeInSec is %f", mTimeInSec);
     
     [_scoreLabel setString:[NSString stringWithFormat:@"%.2d:%.2d", min,sec]];
